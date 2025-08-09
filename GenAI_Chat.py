@@ -11,38 +11,39 @@ import gradio as gr
 
 system_prompt = "You are a helpful assistant that responds in markdown"
 
-def stream_gpt(prompt):
+def stream_gpt(prompt, model, temperatureVal=1.0):
     openai = OpenAI()
-    prompt_messages =[
-      {"role": "system", "content": "You are a helpful assistant that responds in markdown"},
-      {"role": "user", "content": prompt}
-      ]
-    response = openai.chat.completions.create(model='gpt-3.5-turbo', messages=prompt_messages)
-    yield response.choices[0].message.content
+    prompt_messages = [
+        {"role": "system", "content": "You are a helpful assistant that responds in markdown"},
+        {"role": "user", "content": prompt}
+    ]
+    print(f"Streaming response for model: {model}")
+    try:
+        temperature = float(temperatureVal)
+    except (ValueError, TypeError):
+        temperature = 1.0
+    print(f"Temperature set to: {temperature}")
+    response_stream = openai.chat.completions.create(model=model, temperature=temperature, stream=True, messages=prompt_messages)
+    full_response = ""
+    for chunk in response_stream:
+        if hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content:
+            full_response += chunk.choices[0].delta.content
+            yield full_response
 
 def main():
     print("Welcome to the GenAI Chat!")
     # Here you would implement the chat functionality
     # For example, initializing a chat session, processing user input, etc.
     # This is a placeholder for the actual chat logic.
-    '''while True:
-        user_input = input("You: ")
-        if user_input.lower() in ["exit", "quit"]:
-            print("Exiting chat. Goodbye!")
-
-            break
-        else:
-            print(f"GenAI: You said '{user_input}'")  # Placeholder response'''
     
-    file = open("OpenAI", "r")
+    file = open("OpenAIKey", "r")
     content = file.read()
-    print(content)
+    file.close()
     os.environ["OPENAI_API_KEY"] = content
 
     load_dotenv(override=True)
     api_key = os.getenv('OPENAI_API_KEY')
 
-    MODEL = 'gpt-4o-mini'
     openai = OpenAI()
 
     system_message = "You are an assistant that is great at telling jokes"
@@ -56,10 +57,14 @@ def main():
     print(completion.choices[0].message.content)
 
     view = gr.Interface(
-    fn=stream_gpt,
-    inputs=[gr.Textbox(label="Your message:")],
-    outputs=[gr.Markdown(label="Response:")],
-    flagging_mode="never"
+        fn=stream_gpt,
+        inputs=[
+            gr.Textbox(label="Your message:"),
+            gr.Dropdown(choices=["gpt-4.1", "gpt-3.5-turbo", "gpt-4o-mini"], label="Model"),
+            gr.Textbox(label="Temperature", value="1.0")
+        ],
+        outputs=[gr.Markdown(label="Response:")],
+        flagging_mode="never"
     )
     view.launch(share=True)
 
